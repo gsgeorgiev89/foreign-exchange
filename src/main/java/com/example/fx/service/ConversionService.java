@@ -68,13 +68,6 @@ public class ConversionService {
             );
         }
 
-        if(idempotencyKey != null) {
-            IdempotencyKey processingRecord = new IdempotencyKey();
-            processingRecord.setIdempotencyKey(idempotencyKey);
-            processingRecord.setStatus(IdempotencyKey.Status.PROCESSING);
-            idempotencyKeyRepository.saveAndFlush(processingRecord);
-        }
-
         Map<String, BigDecimal> rates = exchangeRateProvider.getRates(request.fromCurrency());
         if (!rates.containsKey(request.toCurrency())) {
             throw new ExchangeRateUnavailableException(
@@ -126,9 +119,8 @@ public class ConversionService {
         conversionRepository.save(conversion);
 
         if (idempotencyKey != null) {
-            IdempotencyKey record = idempotencyKeyRepository
-                    .findById(idempotencyKey)
-                    .orElseThrow();
+            IdempotencyKey record = new IdempotencyKey();
+            record.setIdempotencyKey(idempotencyKey);
             record.setConversionId(conversion.getId());
             record.setStatus(IdempotencyKey.Status.COMPLETED);
             idempotencyKeyRepository.save(record);
