@@ -4,9 +4,7 @@ import com.example.fx.dto.BalanceDto;
 import com.example.fx.dto.ConversionRequest;
 import com.example.fx.dto.ConversionResponse;
 import com.example.fx.dto.ErrorResponse;
-import com.example.fx.repository.BalanceRepository;
 import com.example.fx.repository.ConversionRepository;
-import com.example.fx.repository.IdempotencyKeyRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
@@ -75,7 +73,6 @@ class ConversionControllerIntegrationTest {
         assertThat(response.getBody().sourceAmount()).isEqualByComparingTo("100.00");
         assertThat(response.getBody().sourceCurrency()).isEqualTo("USD");
 
-        // Провери дебита от response-а директно — не от repository
         List<BalanceDto> updatedBalances = response.getBody().updatedBalances();
         BigDecimal newUsd = updatedBalances.stream()
             .filter(b -> b.currency().equals("USD"))
@@ -86,7 +83,6 @@ class ConversionControllerIntegrationTest {
         assertThat(newUsd).isLessThan(new BigDecimal("10000.0000"));
     }
 
-    // 2. Insufficient funds
     @Test
     void convert_insufficientFunds_returns422() {
         HttpHeaders headers = new HttpHeaders();
@@ -107,7 +103,6 @@ class ConversionControllerIntegrationTest {
         assertThat(response.getBody().code()).isEqualTo("INSUFFICIENT_FUNDS");
     }
 
-    // 3. Idempotency replay
     @Test
     void convert_idempotencyReplay_returnsSameResult() {
         String idempotencyKey = UUID.randomUUID().toString();
@@ -124,13 +119,11 @@ class ConversionControllerIntegrationTest {
             "CLIENT-001", PageRequest.of(0, 100)
         ).getTotalElements();
 
-        // Първа заявка
         ResponseEntity<ConversionResponse> first = restTemplate.exchange(
             "/conversions", HttpMethod.POST,
             new HttpEntity<>(request, headers), ConversionResponse.class
         );
 
-        // Втора заявка със същия ключ
         ResponseEntity<ConversionResponse> second = restTemplate.exchange(
             "/conversions", HttpMethod.POST,
             new HttpEntity<>(request, headers), ConversionResponse.class
@@ -141,14 +134,12 @@ class ConversionControllerIntegrationTest {
         assertThat(first.getBody().transactionId())
             .isEqualTo(second.getBody().transactionId());
 
-        // Само една нова конверсия е добавена
         long countAfter = conversionRepository.findByClientId(
             "CLIENT-001", PageRequest.of(0, 100)
         ).getTotalElements();
         assertThat(countAfter).isEqualTo(countBefore + 1);
     }
 
-    // 4. Client not found
     @Test
     void convert_clientNotFound_returns404() {
         HttpHeaders headers = new HttpHeaders();
